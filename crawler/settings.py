@@ -99,6 +99,6 @@ import django
 
 # Thêm đường dẫn của dự án Django vào sys.path
 # Giả sử file manage.py của bạn ở thư mục /app
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '..'))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['DJANGO_SETTINGS_MODULE'] = 'crawler_project.settings'
 django.setup()
