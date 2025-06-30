@@ -1,0 +1,10 @@
+# Môi trường ảo của Python
+venv/
+__pycache__/
+*.pyc
+
+# File biến môi trường
+.env
+
+# Thư mục build của Docker
+# (nếu có)
