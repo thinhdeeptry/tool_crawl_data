@@ -6,6 +6,7 @@ class CrawlTask(models.Model):
         IN_PROGRESS = 'IN_PROGRESS', 'In Progress'
         DONE = 'DONE', 'Done'
         FAILED = 'FAILED', 'Failed'
+        WARNING = 'WARNING', 'Warning'
 
     url_filter = models.URLField(max_length=1024, help_text="URL filter từ trangvangvietnam.com")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
