@@ -16,12 +16,12 @@ class CrawlTaskAdmin(admin.ModelAdmin):
     def export_button(self, obj):
         # 'obj' ở đây là đối tượng CrawlTask hiện tại
         # Kiểm tra xem task có dữ liệu để export không (trạng thái là Done)
-        if obj.status == 'DONE':
+        if obj.pk and obj.status != 'WARNING' and obj.status != 'FAILED' and obj.status != 'PENDING':
             # Tạo URL tới view export của chúng ta
             url = reverse('export_task_to_excel', args=[obj.pk])
-            return format_html('<a class="button" href="{}">Export to Excel</a>', url)
+            return format_html('<a class="button" href="{}">Export</a>', url)
         # Trả về chuỗi rỗng nếu không phải trạng thái DONE
-        return "Chỉ export được khi task ở trạng thái DONE"
+        return "Không có dữ liệu để export"
     # Đặt tên cho cột trong giao diện Admin
     export_button.short_description = 'Hành động'
 @admin.register(BusinessData)

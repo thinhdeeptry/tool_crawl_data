@@ -9,7 +9,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # 1. Tìm một task đang chờ xử lý
-        task = CrawlTask.objects.filter(status='PENDING').order_by('created_at').first()
+        task = CrawlTask.objects.filter(status__in=['PENDING', 'IN_PROGRESS']).order_by('created_at').first()
 
         if not task:
             self.stdout.write(self.style.SUCCESS('Không có task nào đang chờ.'))
@@ -32,15 +32,13 @@ class Command(BaseCommand):
             ]
 
             # Gọi Scrapy như một tiến trình con
-            subprocess.run(command, check=True, cwd='./crawler')
-
-            # 4. Cập nhật trạng thái thành "Done"
-            task.status = 'DONE'
-            self.stdout.write(self.style.SUCCESS(f'Task {task.id} đã hoàn thành.'))
+            result = subprocess.run(command, check=True, cwd='./crawler')
+            
+            # dựa trên số lượng items đã crawl được
+            self.stdout.write(self.style.SUCCESS(f'Đã chạy xong spider cho task {task.id}.'))
 
         except Exception as e:
             self.stderr.write(self.style.ERROR(f'Lỗi khi xử lý task {task.id}: {e}'))
             task.status = 'FAILED'
-        finally:
-            # Luôn lưu lại trạng thái cuối cùng của task
             task.save()
+            self.stdout.write(self.style.ERROR(f'Đã cập nhật task {task.id} sang trạng thái FAILED.'))

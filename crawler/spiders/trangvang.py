@@ -1,6 +1,8 @@
+from asgiref.sync import sync_to_async
 import scrapy
 from urllib.parse import urljoin
 import re
+from trangvang_crawler.models import CrawlTask
 
 class TrangVangSpider(scrapy.Spider):
     # Tên định danh duy nhất của spider
@@ -20,9 +22,10 @@ class TrangVangSpider(scrapy.Spider):
         if task_id:
             self.task_id = task_id
         else:
-            self.task_id = 1  # Gán giá trị mặc định cho task_id
+            self.task_id = 1
             print("WARNING: Không có task_id, sử dụng task_id mặc định = 1")
-            
+        # 2. Khởi tạo một bộ đếm số item đã crawl được
+        self.item_scraped_count = 0
         self.base_url = "https://trangvangvietnam.com"
         print(f"--- BẮT ĐẦU CRAWL TASK {self.task_id} VỚI URL: {url_filter} ---")
 
@@ -37,6 +40,8 @@ class TrangVangSpider(scrapy.Spider):
         business_cards = response.css('div.div_list_cty div.w-100.h-auto.shadow.rounded-3.bg-white.p-2.mb-3')
 
         print(f"--- Tìm thấy {len(business_cards)} doanh nghiệp trên trang: {response.url} ---")
+        if not business_cards and response.request.url in self.start_urls:
+            self.logger.warning(f"Không tìm thấy doanh nghiệp nào trên trang bắt đầu: {response.url}")
 
         for business in business_cards:
             # Trích xuất thông tin email từ href của thẻ a
@@ -68,6 +73,9 @@ class TrangVangSpider(scrapy.Spider):
             }
             # In ra console để kiểm tra (mục tiêu của Task 3.1)
             yield item
+            # 3. Tăng bộ đếm mỗi khi có một item được yield
+            self.item_scraped_count += 1
+            yield item
 
         # Tìm nút "Trang sau" và đi tiếp
         # Sử dụng XPath thay vì CSS selector không được hỗ trợ
@@ -81,3 +89,28 @@ class TrangVangSpider(scrapy.Spider):
             yield scrapy.Request(next_page_url, callback=self.parse)
         else:
             print("--- Đã crawl đến trang cuối cùng. ---")
+
+    # 4. Phương thức này được Scrapy gọi khi spider kết thúc
+    def closed(self, reason):
+        # Phương thức này được gọi khi spider kết thúc
+        # 2. Bọc các thao tác DB bằng sync_to_async
+        @sync_to_async
+        def update_task_status():
+            try:
+                task = CrawlTask.objects.get(id=self.task_id)
+                if self.item_scraped_count > 0:
+                    task.status = 'DONE'
+                    self.logger.info(f"Crawl thành công cho task {self.task_id}. Đã cập nhật status thành DONE.")
+                else:
+                    task.status = 'WARNING'
+                    self.logger.warning(f"Không có dữ liệu nào được crawl cho task {self.task_id}. Đã cập nhật status thành WARNING.")
+                task.save()
+                print(f"--- ĐÃ KẾT THÚC CRAWL TASK {task.status} ---")
+            except CrawlTask.DoesNotExist:
+                self.logger.error(f"Task với id {self.task_id} không tồn tại khi kết thúc spider.")
+            except Exception as e:
+                self.logger.error(f"Lỗi khi cập nhật status task lúc kết thúc spider: {e}")
+
+        # 3. Gọi hàm bất đồng bộ từ Twisted's reactor (môi trường chạy của Scrapy)
+        # Scrapy sẽ tự động xử lý việc chạy coroutine này
+        return update_task_status()
