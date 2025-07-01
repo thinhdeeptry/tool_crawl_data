@@ -4,6 +4,28 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.contrib.admin.views.decorators import staff_member_required
 from .models import CrawlTask
+import subprocess
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.conf import settings
+
+@staff_member_required
+def run_crawl_task(request, task_id):
+    task = get_object_or_404(CrawlTask, pk=task_id)
+    if task.status == 'PENDING':
+        try:
+            command = [
+                'python', 'manage.py', 'process_tasks', f'--task_id={task.id}'
+            ]
+            project_dir = settings.BASE_DIR
+            subprocess.Popen(command, cwd=project_dir)
+            messages.success(request, f"Đã bắt đầu chạy task crawling cho ID: {task.id}")
+        except Exception as e:
+            messages.error(request, f"Lỗi khi bắt đầu task: {e}")
+    else:
+        messages.warning(request, f"Task {task.id} không ở trạng thái PENDING.")
+    
+    return redirect('admin:trangvang_crawler_crawltask_changelist')
 
 # Decorator này đảm bảo chỉ có user là staff (có quyền vào trang admin) mới có thể truy cập view này
 @staff_member_required

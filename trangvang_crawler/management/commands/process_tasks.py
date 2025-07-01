@@ -7,9 +7,16 @@ from django.conf import settings
 class Command(BaseCommand):
     help = 'Processes a pending crawl task'
 
+    def add_arguments(self, parser):
+        parser.add_argument('--task_id', type=int, help='ID of the task to process', default=None)
+
     def handle(self, *args, **options):
-        # 1. Tìm một task đang chờ xử lý
-        task = CrawlTask.objects.filter(status__in=['PENDING', 'IN_PROGRESS']).order_by('created_at').first()
+        task_id = options['task_id']
+        
+        if task_id:
+            task = CrawlTask.objects.filter(id=task_id, status__in=['PENDING', 'IN_PROGRESS']).first()
+        else:
+            task = CrawlTask.objects.filter(status__in=['PENDING', 'IN_PROGRESS']).order_by('created_at').first()
 
         if not task:
             self.stdout.write(self.style.SUCCESS('Không có task nào đang chờ.'))

@@ -6,24 +6,32 @@ from .models import CrawlTask, BusinessData
 @admin.register(CrawlTask)
 class CrawlTaskAdmin(admin.ModelAdmin):
     # Các trường sẽ hiển thị trong danh sách
-    list_display = ('id', 'url_filter', 'status', 'created_at', 'updated_at', 'export_button')
+    list_display = ('id', 'url_filter', 'status', 'created_at', 'updated_at', 'actions_column')
     # Thêm bộ lọc ở bên phải theo trạng thái
     list_filter = ('status',)
     # Thêm ô tìm kiếm
     search_fields = ('url_filter',)
     # Các trường chỉ cho phép đọc, không cho sửa
-    readonly_fields = ('created_at', 'updated_at', 'export_button')
-    def export_button(self, obj):
-        # 'obj' ở đây là đối tượng CrawlTask hiện tại
-        # Kiểm tra xem task có dữ liệu để export không (trạng thái là Done)
-        if obj.pk and obj.status != 'WARNING' and obj.status != 'FAILED' and obj.status != 'PENDING':
-            # Tạo URL tới view export của chúng ta
-            url = reverse('export_task_to_excel', args=[obj.pk])
-            return format_html('<a class="button" href="{}">Export</a>', url)
-        # Trả về chuỗi rỗng nếu không phải trạng thái DONE
-        return "Không có dữ liệu để export"
-    # Đặt tên cho cột trong giao diện Admin
-    export_button.short_description = 'Hành động'
+    readonly_fields = ('created_at', 'updated_at')
+
+    def actions_column(self, obj):
+        buttons = []
+        # Nút "Run" chỉ hiển thị khi trạng thái là PENDING và task đã được lưu (có pk)
+        if obj.pk and obj.status == 'PENDING':
+            run_url = reverse('run_crawl_task', args=[obj.pk])
+            buttons.append(f'<a class="button" href="{run_url}">Run</a>')
+
+        # Nút "Export" hiển thị cho các trạng thái khác trừ WARNING, FAILED, PENDING
+        if obj.pk and obj.status not in ['WARNING', 'FAILED', 'PENDING']:
+            export_url = reverse('export_task_to_excel', args=[obj.pk])
+            buttons.append(f'<a class="button" href="{export_url}">Export</a>')
+        
+        if not buttons:
+            return "Không có hành động"
+            
+        return format_html(' '.join(buttons))
+
+    actions_column.short_description = 'Hành động'
 @admin.register(BusinessData)
 class BusinessDataAdmin(admin.ModelAdmin):
     list_display = ('name', 'phone', 'address', 'category', 'task')
