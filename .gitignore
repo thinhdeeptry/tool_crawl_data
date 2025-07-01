@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 
 # File biến môi trường
-.env
+#.env
 
 # Thư mục build của Docker
 # (nếu có)
