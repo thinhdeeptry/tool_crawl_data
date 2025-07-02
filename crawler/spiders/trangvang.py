@@ -14,6 +14,7 @@ class TrangVangSpider(scrapy.Spider):
         # Kiểm tra và thiết lập URL bắt đầu
         if url_filter:
             self.start_urls = [url_filter]
+            self.current_page = 1
         else:
             self.start_urls = ["https://trangvangvietnam.com/categories/100-nha-hang"]
             print("WARNING: Không có URL filter, sử dụng URL mặc định")
@@ -78,10 +79,19 @@ class TrangVangSpider(scrapy.Spider):
             yield item
 
         # Tìm nút "Trang sau" và đi tiếp
-        # Sử dụng XPath thay vì CSS selector không được hỗ trợ
         next_page = response.xpath('//div[@id="paging"]/a[text()="Tiếp"]/@href').get()
-        
-        if next_page:
+        #lấy trang cuối
+        max_page_element = response.xpath('//div[@id="paging"]/a[text()="Tiếp"]/preceding-sibling::a[1]/text()').get()
+        # Kiểm tra nếu là một số và chuyển đổi thành số nguyên
+        max_page = None
+        if max_page_element and max_page_element.isdigit():
+            max_page = int(max_page_element)
+            print(f"--- Trang cuối hiển thị: {max_page} ---")
+        # Xác định trang hiện tại
+        current_page_element = response.css('a.page_active::text').get()
+        current_page = int(current_page_element) if current_page_element and current_page_element.isdigit() else 1
+
+        if next_page and max_page and current_page < max_page:
             # Nối URL tương đối với domain để có URL tuyệt đối
             base_url = response.url.split('?')[0]
             next_page_url = urljoin(base_url, next_page)
