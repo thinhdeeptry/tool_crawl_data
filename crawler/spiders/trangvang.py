@@ -28,6 +28,9 @@ class TrangVangSpider(scrapy.Spider):
         # 2. Khởi tạo một bộ đếm số item đã crawl được
         self.item_scraped_count = 0
         self.base_url = "https://trangvangvietnam.com"
+        
+        # Thêm set để lưu trữ doanh nghiệp đã xử lý
+        self.processed_businesses = set()
         print(f"--- BẮT ĐẦU CRAWL TASK {self.task_id} VỚI URL: {url_filter} ---")
 
     # Phương thức bắt đầu gửi request
@@ -44,39 +47,87 @@ class TrangVangSpider(scrapy.Spider):
         if not business_cards and response.request.url in self.start_urls:
             self.logger.warning(f"Không tìm thấy doanh nghiệp nào trên trang bắt đầu: {response.url}")
 
+        businesses_processed = 0
+        businesses_skipped = 0
+
         for business in business_cards:
-            # Trích xuất thông tin email từ href của thẻ a
+            # Trích xuất thông tin cơ bản trước
+            name = business.css('div.listings_center h2.fs-5 a::text').get()
+            if not name:
+                name = business.css('div.listings_center_khongxacthuc h2.fs-5 a::text').get()
+            address = business.css('div.logo_congty_diachi div:nth-child(2) small::text').get()
+            if not address:
+                address = business.css('div.listing_diachi_nologo div:nth-child(2) small::text').get()
+            if address:
+                address = address.strip()
+            
+            phone = business.css('div.logo_congty_diachi div.listing_dienthoai a::text').get()
+            self.logger.warning (f"---check phone trước khi phone Null------: {(phone)}")
+            if not phone: 
+                phone = business.css('div.listing_diachi_nologo div:nth-child(3) a::text').get()
+                self.logger.warning (f"---check phone sau khi phone Null------: {(phone)}")
+            # Kiểm tra các trường bắt buộc
+            required_fields_missing = False
+            missing_fields = []
+            
+            # 1. Tên công ty là bắt buộc
+            if not name:
+                required_fields_missing = True
+                missing_fields.append("tên công ty")
+            
+            # 2. Địa chỉ là bắt buộc
+            if not address:
+                required_fields_missing = True
+                missing_fields.append("địa chỉ")
+            
+            # 3. Số điện thoại là bắt buộc
+            if not phone:
+                required_fields_missing = True
+                missing_fields.append("số điện thoại")
+                
+            # Nếu thiếu thông tin bắt buộc, bỏ qua công ty này
+            if required_fields_missing:
+                businesses_skipped += 1
+                self.logger.warning(f"Bỏ qua công ty (thiếu: {', '.join(missing_fields)})")
+                continue
+            business_key = f"{name}|{phone}" if phone else name
+            # Kiểm tra xem đã xử lý doanh nghiệp này chưa
+            if business_key in self.processed_businesses:
+                self.logger.warning(f"Bỏ qua doanh nghiệp trùng lặp: {name}")
+                businesses_skipped += 1
+            # Thêm vào danh sách đã xử lý
+            self.processed_businesses.add(business_key)    
+            # Tiếp tục trích xuất các thông tin khác
             email_href = business.css('div.email_web_section a[href^="mailto:"]::attr(href)').get()
             email = None
             if email_href:
-                # Trích xuất email từ href="mailto:email@example.com"
                 email = email_href.replace('mailto:', '')
             
-            # Trích xuất website
             website_element = business.css('div.email_web_section a[href^="http"]')
             website_url = website_element.css('::attr(href)').get()
             
-            # Trích xuất ngành nghề
             category_text = business.css('div.logo_congty_diachi div:nth-child(1) span.nganh_listing_txt::text').get()
-            if category_text:
-                category = category_text.strip()
-            else:
-                category = None
+            if not category_text:
+                category_text = business.css('div.listing_diachi_nologo div:nth-child(1) span.nganh_listing_txt::text').get()
+            category = category_text.strip() if category_text else None
             
             item = {
                 'task_id': self.task_id,
-                'name': business.css('div.listings_center h2.fs-5 a::text').get(),
-                'address': business.css('div.logo_congty_diachi div:nth-child(2) small::text').get().strip() if business.css('div.logo_congty_diachi div:nth-child(2) small::text').get() else None,
-                'phone': business.css('div.logo_congty_diachi div.listing_dienthoai a::text').get(),
+                'name': name,
+                'address': address,
+                'phone': phone,
                 'website': website_url,
                 'email': email,
                 'category': category,
             }
-            # In ra console để kiểm tra (mục tiêu của Task 3.1)
+            
+            # In ra console để kiểm tra
+            businesses_processed += 1
             yield item
-            # 3. Tăng bộ đếm mỗi khi có một item được yield
+            # Tăng bộ đếm mỗi khi có một item được yield
             self.item_scraped_count += 1
-            yield item
+        
+        print(f"--- Đã xử lý {businesses_processed} doanh nghiệp, bỏ qua {businesses_skipped} doanh nghiệp thiếu thông tin ---")
 
         # Tìm nút "Trang sau" và đi tiếp
         next_page = response.xpath('//div[@id="paging"]/a[text()="Tiếp"]/@href').get()
